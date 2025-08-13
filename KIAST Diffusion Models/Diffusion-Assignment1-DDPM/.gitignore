@@ -1,0 +1,30 @@
+__pycache__/
+*.py[cod]
+*.so
+.ipynb_checkpoints/
+data/
+results/
+outputs/
+samples/
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python
+*.egg-info/
+dist/
+build/
+.env
+
+# Solutions
+2d_plot_diffusion/
+image_diffusion/
+
+# Model checkpoints
+*.ckpt
+*.pth
+*.pt

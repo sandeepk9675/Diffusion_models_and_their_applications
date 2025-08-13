@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
 
 
 def extract(input, t: torch.Tensor, x: torch.Tensor):
@@ -91,10 +92,13 @@ class DiffusionModule(nn.Module):
         ######## TODO ########
         # DO NOT change the code outside this part.
         # Compute xt.
+
         alphas_prod_t = extract(self.var_scheduler.alphas_cumprod, t, x0)
+
         
         xt = torch.sqrt(alphas_prod_t) * x0 + torch.sqrt(1 - alphas_prod_t) * noise
-        
+        # xt shape: [batch_size, 2]
+
         #######################
 
         return xt
@@ -124,19 +128,21 @@ class DiffusionModule(nn.Module):
         eps_theta = self.network(xt, t)
 
         # 3. Compute the mean μ_t
-        mu_t = (1 / torch.sqrt(alpha_t)) * (xt - ((beta_t / torch.sqrt(1 - alpha_bar_t)) * eps_theta))
+        mu_t = (1 / torch.sqrt(alpha_t)) * (xt - (1-alpha_t)/torch.sqrt(1-alpha_bar_t) * eps_theta)
 
         # 4. Compute σ_t^2 = \tilde{β}_t
-        if (t - 1).min() >= 0:
-            alpha_bar_t_prev = extract(self.var_scheduler.alphas_cumprod, t - 1, xt)  # α̅_{t-1}
-        else:
-            alpha_bar_t_prev = torch.ones_like(alpha_bar_t)  # α̅_{-1} = 1
+        alpha_bar_t_prev = extract(self.var_scheduler.alphas_cumprod, t - 1, xt)  # α̅_{t-1}
+        alpha_bar_t_prev = torch.where((t - 1) >= 0, alpha_bar_t_prev, torch.ones_like(alpha_bar_t_prev))
 
         sigma_t_sq = ((1 - alpha_bar_t_prev) / (1 - alpha_bar_t)) * beta_t
 
         # 5. Sample noise z ~ N(0, I) and add variance term
-        noise = torch.randn_like(xt) if t.min() > 0 else torch.zeros_like(xt)
+        noise = torch.zeros_like(xt) if t.min() <= 0 else torch.randn_like(xt)
         x_t_prev = mu_t + torch.sqrt(sigma_t_sq) * noise
+
+
+        # import sys
+        # sys.exit(0)
 
         #######################
         return x_t_prev
@@ -157,7 +163,7 @@ class DiffusionModule(nn.Module):
         
         xt = torch.randn(shape).to(self.device)
         
-        for i in range(self.var_scheduler.num_train_timesteps - 1, -1, -1):
+        for i in range(self.var_scheduler.num_train_timesteps, 0, -1):
             t = torch.full((shape[0],), i, dtype=torch.long, device=self.device)
             xt = self.p_sample(xt, t)
 
@@ -243,7 +249,7 @@ class DiffusionModule(nn.Module):
         # compute noise matching loss.
         batch_size = x0.shape[0]
         t = (
-            torch.randint(0, self.var_scheduler.num_train_timesteps, size=(batch_size,))
+            torch.randint(1, self.var_scheduler.num_train_timesteps, size=(batch_size,))
             .to(x0.device)
             .long()
         )
