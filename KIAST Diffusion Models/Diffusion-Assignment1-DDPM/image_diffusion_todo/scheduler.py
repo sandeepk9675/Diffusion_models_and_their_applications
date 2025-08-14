@@ -86,13 +86,38 @@ class DDPMScheduler(BaseScheduler):
         ######## TODO ########
         # DO NOT change the code outside this part.
         # Assignment 1. Implement the DDPM reverse step.
+        B, C, H, W  = x_t.shape
+        t = torch.tensor(t, device=x_t.device)
+        
+        t  =  t.expand(B,)
+        # t = t.reshape(-1, 1, 1, 1)
         sample_prev = None
         #######################
+        alpha_t = self._get_teeth(self.alphas, t)                  # α_t
+        alpha_bar_t = self._get_teeth(self.alphas_cumprod, t)      # α̅_t
+        beta_t = self._get_teeth(self.betas, t)                    # β_t
+
+        # alpha_t shape: [batch_size, 1, 1, 1]
+        # alpha_bar_t shape: [batch_size, 1, 1, 1]
+        # beta_t shape: [batch_size, 1, 1, 1]
+
+        # 3. Compute the mean μ_t
+        mean_coeff = 1.0 / torch.sqrt(alpha_t) # [batch_size, 1, 1, 1]
+        eps_coeff = (1 - alpha_t) / torch.sqrt(1 - alpha_bar_t) # [batch_size, 1, 1, 1]
+
+        mu_t = mean_coeff * (x_t - eps_coeff * eps_theta) # [batch_size, C, H, W]
+
+        sigma_t_sq = beta_t # *sigma_t_sq = ((1 - alpha_bar_t_prev) / (1 - alpha_bar_t))
+        # sigma_t_sq: [batch_size, 1, 1, 1]
+
+        sample_prev = mu_t + torch.sqrt(sigma_t_sq) * torch.randn_like(x_t)
         
+
         return sample_prev
     
     # https://nn.labml.ai/diffusion/ddpm/utils.html
     def _get_teeth(self, consts: torch.Tensor, t: torch.Tensor): # get t th const 
+        # print(f"consts shape: {consts.shape}, t shape: {t.shape}")
         const = consts.gather(-1, t)
         return const.reshape(-1, 1, 1, 1)
     
@@ -115,12 +140,21 @@ class DDPMScheduler(BaseScheduler):
         """
         
         if eps is None:
-            eps       = torch.randn(x_0.shape, device='cuda')
+            eps = torch.randn(x_0.shape, device='cuda')
 
         ######## TODO ########
         # DO NOT change the code outside this part.
         # Assignment 1. Implement the DDPM forward step.
-        x_t = None
+        B, C, H, W = x_0.shape
+        print(f"hello world t shape: {t.shape}")
+        alphas_prod_t = self._get_teeth(self.alphas_cumprod, t)
+        # alphas_prod_t shape: [batch_size, 1, 1, 1]
+        ## alphas_prod_t = alphas_prod_t.expand(B, C, H, W)
+        ## alphas_prod_t shape: [batch_size, C, H, W]
+    
+        xt = torch.sqrt(alphas_prod_t ) * x0 + torch.sqrt(1 - alphas_prod_t) * eps
+        # xt shape: [batch_size, 2]
+        x_t = xt
         #######################
 
         return x_t, eps

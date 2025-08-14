@@ -119,10 +119,6 @@ class DiffusionModule(nn.Module):
         # DO NOT change the code outside this part.
         # compute x_t_prev.
 
-        # Handle t=0 case (final step, return as is)
-        # if torch.all(t == 0):
-        #     return xt
-
         # 1. Get values from scheduler
         alpha_t = extract(self.var_scheduler.alphas, t, xt)                  # α_t
         alpha_bar_t = extract(self.var_scheduler.alphas_cumprod, t, xt)      # α̅_t

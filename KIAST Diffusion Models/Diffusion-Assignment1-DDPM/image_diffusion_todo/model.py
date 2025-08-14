@@ -18,9 +18,16 @@ class DiffusionModule(nn.Module):
         # DO NOT change the code outside this part.
         # compute noise matching loss.
         B = x0.shape[0]
-        timestep = self.var_scheduler.uniform_sample_t(B, self.device)        
-        loss = x0.mean()
-        ######################
+        timestep = self.var_scheduler.uniform_sample_t(B, self.device) # shape: (B,)
+
+        if noise is None:
+            xt, noise = self.var_scheduler.add_noise(x0, timestep)
+
+        eps_theta = self.network(xt, timestep)
+
+        loss = F.mse_loss(eps_theta, noise)
+
+        #####################
         return loss
     
     @property
