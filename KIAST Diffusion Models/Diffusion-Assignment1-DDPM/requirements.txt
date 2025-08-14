@@ -8,4 +8,5 @@ jupyterlab==4.0.2
 jaxtyping==0.2.20
 pytorch_lightning
 dotmap
-numpy==1.26.0
+numpy==1.26.0pi
+torchvision==0.23.0

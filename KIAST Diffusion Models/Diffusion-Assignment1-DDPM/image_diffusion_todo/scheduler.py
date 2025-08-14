@@ -146,13 +146,13 @@ class DDPMScheduler(BaseScheduler):
         # DO NOT change the code outside this part.
         # Assignment 1. Implement the DDPM forward step.
         B, C, H, W = x_0.shape
-        print(f"hello world t shape: {t.shape}")
+        # print(f"hello world t shape: {t.shape}")
         alphas_prod_t = self._get_teeth(self.alphas_cumprod, t)
         # alphas_prod_t shape: [batch_size, 1, 1, 1]
         ## alphas_prod_t = alphas_prod_t.expand(B, C, H, W)
         ## alphas_prod_t shape: [batch_size, C, H, W]
     
-        xt = torch.sqrt(alphas_prod_t ) * x0 + torch.sqrt(1 - alphas_prod_t) * eps
+        xt = torch.sqrt(alphas_prod_t ) * x_0 + torch.sqrt(1 - alphas_prod_t) * eps
         # xt shape: [batch_size, 2]
         x_t = xt
         #######################
