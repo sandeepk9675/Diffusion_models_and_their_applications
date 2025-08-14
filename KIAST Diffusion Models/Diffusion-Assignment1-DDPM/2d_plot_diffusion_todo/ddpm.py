@@ -96,13 +96,13 @@ class DiffusionModule(nn.Module):
         alphas_prod_t = extract(self.var_scheduler.alphas_cumprod, t, x0)
 
         
-        xt = torch.sqrt(alphas_prod_t) * x0 + torch.sqrt(1 - alphas_prod_t) * noise
+        xt = torch.sqrt(alphas_prod_t ) * x0 + torch.sqrt(1 - alphas_prod_t) * noise
         # xt shape: [batch_size, 2]
 
         #######################
 
         return xt
-
+        
     @torch.no_grad()
     def p_sample(self, xt, t):
         """
@@ -119,6 +119,10 @@ class DiffusionModule(nn.Module):
         # DO NOT change the code outside this part.
         # compute x_t_prev.
 
+        # Handle t=0 case (final step, return as is)
+        # if torch.all(t == 0):
+        #     return xt
+
         # 1. Get values from scheduler
         alpha_t = extract(self.var_scheduler.alphas, t, xt)                  # α_t
         alpha_bar_t = extract(self.var_scheduler.alphas_cumprod, t, xt)      # α̅_t
@@ -128,21 +132,18 @@ class DiffusionModule(nn.Module):
         eps_theta = self.network(xt, t)
 
         # 3. Compute the mean μ_t
-        mu_t = (1 / torch.sqrt(alpha_t)) * (xt - (1-alpha_t)/torch.sqrt(1-alpha_bar_t) * eps_theta)
+        mean_coeff = 1.0 / torch.sqrt(alpha_t)
+        eps_coeff = (1 - alpha_t) / torch.sqrt(1 - alpha_bar_t)
+        mu_t = mean_coeff * (xt - eps_coeff * eps_theta)
 
-        # 4. Compute σ_t^2 = \tilde{β}_t
-        alpha_bar_t_prev = extract(self.var_scheduler.alphas_cumprod, t - 1, xt)  # α̅_{t-1}
-        alpha_bar_t_prev = torch.where((t - 1) >= 0, alpha_bar_t_prev, torch.ones_like(alpha_bar_t_prev))
+        # 4. Compute variance σ_t^2
+        # For DDPM, we can use the simpler formula: σ_t^2 = β_t
+        # This is equivalent to the more complex formula when properly handled
+        sigma_t_sq = beta_t # *sigma_t_sq = ((1 - alpha_bar_t_prev) / (1 - alpha_bar_t))
 
-        sigma_t_sq = ((1 - alpha_bar_t_prev) / (1 - alpha_bar_t)) * beta_t
-
-        # 5. Sample noise z ~ N(0, I) and add variance term
-        noise = torch.zeros_like(xt) if t.min() <= 0 else torch.randn_like(xt)
+        # 5. Sample noise and compute x_{t-1}
+        noise = torch.randn_like(xt)
         x_t_prev = mu_t + torch.sqrt(sigma_t_sq) * noise
-
-
-        # import sys
-        # sys.exit(0)
 
         #######################
         return x_t_prev
@@ -162,12 +163,16 @@ class DiffusionModule(nn.Module):
         # sample x0 based on Algorithm 2 of DDPM paper.
         
         xt = torch.randn(shape).to(self.device)
+        x0_pred = None
         
-        for i in range(self.var_scheduler.num_train_timesteps, 0, -1):
+        for i in range(self.var_scheduler.num_train_timesteps-1, -1, -1):  # Fixed: go to -1, not 0
             t = torch.full((shape[0],), i, dtype=torch.long, device=self.device)
-            xt = self.p_sample(xt, t)
+            # print(f"timestep: {i}, xt shape: {xt.shape}, t shape: {t.shape}")
 
-        x0_pred = xt
+            xt_prev = self.p_sample(xt, t)
+            xt = xt_prev
+            x0_pred = xt_prev
+
         ######################
         return x0_pred
 

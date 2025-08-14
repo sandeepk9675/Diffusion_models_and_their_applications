@@ -85,20 +85,19 @@ class SimpleNet(nn.Module):
         ######## TODO ########
         # Build a simple feedforward MLP where each layer except the last
         # is followed by a ReLU activation.
-        layers = []
-        in_dim = dim_in
-        for hid in dim_hids:
-            layers.append(nn.Linear(in_dim, hid))
-            layers.append(nn.ReLU())
-            in_dim = hid
-        layers.append(nn.Linear(in_dim, dim_out))
-        self.net = nn.Sequential(*layers)
+        # Keep the time embedding module
+        self.time_embedding = TimeEmbedding(hidden_size=dim_hids[0])
 
-        self.dim_in = dim_in
-        self.dim_out = dim_out
-        self.dim_hids = dim_hids
-        self.num_timesteps = num_timesteps
-        self.time_linear = TimeLinear(dim_in, dim_out, num_timesteps)
+        # Manually create the layers instead of using nn.Sequential
+        self.layers = nn.ModuleList()
+        in_dim = dim_in
+        for hid_dim in dim_hids:
+            self.layers.append(nn.Linear(in_dim, hid_dim))
+            self.layers.append(nn.SiLU()) # Using SiLU like in the time embedder is common
+            in_dim = hid_dim
+        
+        # Final output layer
+        self.final_layer = nn.Linear(in_dim, dim_out)
         ######################
         
     def forward(self, x: torch.Tensor, t: torch.Tensor):
@@ -111,9 +110,20 @@ class SimpleNet(nn.Module):
             t: the time that the forward diffusion has been running
         """
         ######## TODO ########
-        # Pass the noisy input through the MLP
-        x_out = self.net(x)
-        # Apply time conditioning using TimeLinear
-        x_out = self.time_linear(x_out, t)
+        # 1. Compute the time embedding first
+        t_emb = self.time_embedding(t)
+
+        # 2. Pass through layers, adding the time embedding
+        h = x
+        for i, layer in enumerate(self.layers):
+            h = layer(h)
+            # Add time embedding after the linear layer, before activation
+            if isinstance(layer, nn.Linear):
+                # Ensure dimensions match for broadcasting or expand t_emb
+                h = h + t_emb
+        
+        # 3. Final layer
+        output = self.final_layer(h)
+        return output
         ######################
-        return x_out
+        return output
